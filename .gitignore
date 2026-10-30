@@ -2,9 +2,6 @@
 node_modules/
 
 # Wrangler
-.cf-deploy.json
-.cf-dry-run/
-__pycache__/
 .wrangler/
 .dev.vars
 wrangler.my.toml

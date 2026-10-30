@@ -109,10 +109,6 @@
 
 ---
 
-## 本 Fork 的自动部署
-
-已添加同步后更新现有 Cloudflare Worker 的工作流，首次需配置专用 API Token、账户 ID 和现有 Worker 名称。保留线上数据库及附件绑定，不删除重建。详见[自动部署设置与安全说明](docs/cloudflare-auto-deploy.md)。
-
 ## 更新方法：
 - 手动：打开你 Fork 的 GitHub 仓库，看到顶部同步提示后，点击 `Sync fork` ➜ `Update branch`
 
