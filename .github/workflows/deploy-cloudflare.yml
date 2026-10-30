@@ -1,0 +1,93 @@
+name: Deploy existing Cloudflare Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nodewarden-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      configured: ${{ steps.config.outputs.configured }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - run: python3 -m unittest discover -s scripts -p 'test_cf_deploy*.py'
+      - run: npm run build
+      - run: npx wrangler deploy --dry-run --outdir .cf-dry-run
+      - name: Check deployment configuration
+        id: config
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CF_WORKER: ${{ vars.CF_WORKER_NAME }}
+        run: |
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ] && [ -n "$CF_WORKER" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Deployment skipped: set Secret CLOUDFLARE_API_TOKEN and Variables CLOUDFLARE_ACCOUNT_ID, CF_WORKER_NAME. See docs/cloudflare-auto-deploy.md.'
+            echo 'Validation only. Cloudflare deployment is NOT configured and will be skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    needs: validate
+    if: needs.validate.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CF_WORKER_NAME: ${{ vars.CF_WORKER_NAME }}
+      CI: 'true'
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - name: Preserve existing production bindings and configuration
+        run: python3 scripts/cf-deploy-config.py
+      - name: Verify production bundle without deploying
+        run: npx wrangler deploy --config .cf-deploy.json --dry-run --outdir .cf-dry-run
+      - name: Update existing Worker
+        run: npx wrangler deploy --config .cf-deploy.json --keep-vars --message "GitHub ${GITHUB_SHA}"
+      - name: Read back deployed Worker
+        run: python3 scripts/cf-deploy-config.py
+      - name: Optional live API check
+        env:
+          CF_HEALTH_URL: ${{ vars.CF_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_HEALTH_URL" ]; then
+            echo 'Deployment command succeeded; live endpoint verification not configured.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          case "$CF_HEALTH_URL" in https://*) ;; *) echo 'CF_HEALTH_URL must use HTTPS'; exit 1 ;; esac
+          curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 30 "$CF_HEALTH_URL" -o /tmp/nodewarden-health.json
+          python3 -c 'import json; d=json.load(open("/tmp/nodewarden-health.json")); assert isinstance(d, dict) and d.get("version"), "Expected NodeWarden /api/config response"'
+          echo 'Live /api/config check passed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove generated production configuration
+        if: always()
+        run: rm -f .cf-deploy.json

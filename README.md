@@ -110,6 +110,10 @@
 
 ---
 
+## Automatic deployment in this fork
+
+An Actions workflow can update your existing Cloudflare Worker after syncing `main`. Configure the scoped API token, account ID and existing Worker name first; see [setup and production safety notes](docs/cloudflare-auto-deploy.md). Existing storage bindings are reused, not recreated.
+
 ## How to update
 
 - Manual: open your fork on GitHub; when the sync banner appears, click **Sync fork** → **Update branch**
