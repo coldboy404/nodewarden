@@ -82,10 +82,27 @@ def api(path):
     return body['result']
 
 
+def select_worker(candidates):
+    if len(candidates) != 1:
+        raise ValueError('Expected exactly one existing NodeWarden Worker; set optional CF_WORKER_NAME when none or multiple match')
+    return candidates[0]
+
+
 def main():
     account = os.environ['CLOUDFLARE_ACCOUNT_ID']
-    worker = os.environ['CF_WORKER_NAME']
+    worker = os.environ.get('CF_WORKER_NAME', '').strip()
     if not re.fullmatch(r'[a-fA-F0-9]{32}', account): raise ValueError('Invalid Cloudflare account ID')
+    if not worker:
+        candidates = []
+        for script in api(f'/accounts/{account}/workers/scripts'):
+            live = api(f"/accounts/{account}/workers/scripts/{script['id']}/settings")
+            bindings = {b['name']: b['type'] for b in live.get('bindings', [])}
+            if (bindings.get('DB') == 'd1'
+                    and bindings.get('NOTIFICATIONS_HUB') == 'durable_object_namespace'
+                    and (bindings.get('ATTACHMENTS') == 'r2_bucket'
+                         or bindings.get('ATTACHMENTS_KV') == 'kv_namespace')):
+                candidates.append(script['id'])
+        worker = select_worker(candidates)
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,62}', worker): raise ValueError('Invalid existing Worker name')
     base = f'/accounts/{account}/workers/scripts/{worker}'
     settings = api(base + '/settings')  # A missing Worker is fatal, never create a new one.

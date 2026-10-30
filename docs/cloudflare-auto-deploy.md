@@ -8,14 +8,14 @@
 
 - **Secrets**：`CLOUDFLARE_API_TOKEN`，填入专用 Cloudflare API Token，不是 Global API Key，也不是短期 Wrangler OAuth Token。
 - **Variables**：`CLOUDFLARE_ACCOUNT_ID`，现有 Worker 所在账户 ID。
-- **Variables**：`CF_WORKER_NAME`，现有 Worker 的完整名称，必须与 Cloudflare 后台一致，不能填域名。
+- **Variables（可选）**：`CF_WORKER_NAME`。默认自动检查账号中 Worker 的 D1、附件存储和通知 Durable Object 绑定，只有唯一匹配时才更新；无需填写名称。有多个符合条件的实例时才需要指定现有 Worker 名称，不能填域名。
 - **Variables（推荐）**：`CF_HEALTH_URL`，现有站点的 `https://vault.example.com/api/config`。用于部署后验证，不填时只验证部署命令和控制面读取，不宣称站点已验证。
 
 Token 限定在该账户，使用 Cloudflare **Edit Cloudflare Workers** 模板，根据现有绑定允许 Workers Scripts/Edit、D1/Edit、Workers KV Storage/Edit、Workers R2 Storage/Edit；自定义域名/路由需要相应 Workers Routes/Edit、Zone/Read 权限并限定相关 zone。脚本需要读取 Worker 设置、路由、自定义域名、workers.dev 和 Cron。权限不足会停止部署，不会创建替代数据库。按实际部署错误进一步收紧权限；不需要将密码库的 JWT_SECRET 存到 GitHub。
 
 在 **Actions → Deploy existing Cloudflare Worker → Run workflow** 手动验证一次，确认 `deploy` job 成功、站点正常后，再进行日常同步。
 
-缺少以上前三项时，验证仍会运行，但部署 job 明确 **skipped**，不表示已发布。
+只必须配置 Token 和账户 ID；Worker 名称和链接均可不填。缺少 Token 或账户 ID 时，验证仍会运行，但部署 job 明确 **skipped**，不表示已发布。
 
 ## 已有部署的保护
 
@@ -30,7 +30,7 @@ Token 限定在该账户，使用 Cloudflare **Edit Cloudflare Workers** 模板�
 
 ## 避免双重部署
 
-如果现有 Worker 已在 Cloudflare **Settings → Builds** 连接本 GitHub 仓库，正常同步上游通常已经会触发 Cloudflare 自动构建，未必需要额外 Actions。采用本 Actions 流程前，应在确认配置成功后关闭旧的自动构建触发，保留一个部署入口，避免两个构建竞相发布。此仓库变更不会替你断开 Cloudflare Git 连接。
+本 fork 使用 GitHub Actions + Wrangler 部署，不依赖 Cloudflare Workers Builds 权限。即使 Worker 最初连接 GitHub 部署、之后 Workers Builds 权限被取消，也可以继续更新原 Worker。若 Workers Builds 未来恢复，保持单一部署入口，避免重复发布；无需为使用 Actions 删除现有 Worker 或资源。
 
 如果上游同步由另一条 Actions 工作流使用默认 `GITHUB_TOKEN` 推送完成，GitHub 不会再次触发 push 工作流。那条同步工作流需要显式 dispatch 本工作流，或者使用用户自己配置的合适 GitHub App/PAT。手动 Sync fork 不受此限制。
 

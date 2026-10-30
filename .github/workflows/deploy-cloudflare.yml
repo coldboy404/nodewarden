@@ -38,11 +38,11 @@ jobs:
           CF_ACCOUNT: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CF_WORKER: ${{ vars.CF_WORKER_NAME }}
         run: |
-          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ] && [ -n "$CF_WORKER" ]; then
+          if [ -n "$CF_TOKEN" ] && [ -n "$CF_ACCOUNT" ]; then
             echo 'configured=true' >> "$GITHUB_OUTPUT"
           else
             echo 'configured=false' >> "$GITHUB_OUTPUT"
-            echo '::notice::Deployment skipped: set Secret CLOUDFLARE_API_TOKEN and Variables CLOUDFLARE_ACCOUNT_ID, CF_WORKER_NAME. See docs/cloudflare-auto-deploy.md.'
+            echo '::notice::Deployment skipped: set Secret CLOUDFLARE_API_TOKEN and Variable CLOUDFLARE_ACCOUNT_ID. Worker auto-detection is enabled. See docs/cloudflare-auto-deploy.md.'
             echo 'Validation only. Cloudflare deployment is NOT configured and will be skipped.' >> "$GITHUB_STEP_SUMMARY"
           fi
 

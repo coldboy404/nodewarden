@@ -35,6 +35,13 @@ class DeploymentConfigTests(unittest.TestCase):
         self.assertEqual(c['triggers']['crons'], ['*/5 * * * *'])
         self.assertEqual(len(c['durable_objects']['bindings']), 2)
 
+    def test_select_unique_worker(self):
+        self.assertEqual(module.select_worker(['existing-worker']), 'existing-worker')
+
+    def test_ambiguous_or_missing_worker_stops(self):
+        for candidates in ([], ['first', 'second']):
+            with self.assertRaises(ValueError): module.select_worker(candidates)
+
     def test_kv_reuses_namespace(self):
         c = self.prepare(self.settings('kv_namespace'))
         self.assertNotIn('r2_buckets', c)
